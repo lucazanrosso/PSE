@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#include "readersAndModel.h"
+
 // Global variables
 
 int readers = 0;

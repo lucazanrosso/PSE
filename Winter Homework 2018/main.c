@@ -1,20 +1,52 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <time.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <pthread.h>
+
+#include "readerAndModel.h"
+#include "model.h"
 
 #define WIDTH 80
 #define HEIGHT 9
+
+#define BUFF_DIMENS 10
+#define NUM_THREAD 5
 
 int start = -30;
 int finish = 20;
 int position = 0;
 bool increment = true;
 
-static void redraw(void);
+int thread_id[NUM_THREAD]  = {0, 1, 2, 3, 4};
+double deviceInput[BUFF_DIMENS] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+double devicePosition[BUFF_DIMENS];
+//static void redraw(void);
 
-int main(void)
-{
-    const int trigger   = (CLOCKS_PER_SEC * 50) / 1000;  // 500 ms in clocks.
+int main(void) {
+	
+	initMonitor();
+	
+	//pthread_t reader;
+	pthread_t model;
+	//pthread_t view;
+	//pthread_t controller;
+	
+	if (pthread_create(&model, NULL, (void *) modelFunc, (void *) deviceInput)) {
+		printf("Error in creating readers threads");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_join(model, NULL)) {
+		printf("Error in joining readers threads");
+		exit(EXIT_FAILURE);
+	}
+	
+	closeMonitor();
+	exit(EXIT_SUCCESS); 
+	
+    /*const int trigger   = (CLOCKS_PER_SEC * 50) / 1000;  // 500 ms in clocks.
     clock_t   prevClock = clock() - trigger;
 	
 	printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
@@ -28,25 +60,11 @@ int main(void)
             redraw();
         }
 		
-    }
+    }*/
 }
 
-static void redraw(void) {
+/*static void redraw(void) {
 
-    /*const char prompt[] = "\
- -                                                                              - \n\
-|                                                                                |\n\
-|                                                                                |\n\
-|                                                                                |\n\
-|                                                                                |\n\
-|                                                                                |\n\
-|                                                                                |\n\
-|                                                                                |\n\
-|                                                                                |\n\
-|                                                                                |\n\
- -                                                                              -";*/
-
- 
 	const char prompt[] = "";
 	printf("\r%*s\r%s", WIDTH, "", prompt);
 	for (int i = -WIDTH/2; i < WIDTH/2; i++) {
@@ -70,4 +88,4 @@ static void redraw(void) {
 		position++;
 	else
 		position--;
-}
+}*/
