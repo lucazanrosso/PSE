@@ -5,114 +5,165 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#include "readerAndModel.h"
+#include "monitorInput.h"
+#include "monitorPosition.h"
 
 #define WIDTH 80
 #define HEIGHT 9
 
-#define BUFF_DIMENS 10
-#define NUM_THREAD 5
+#define MAX_LINE_LENGTH 80
 
-int start = -30;
-int finish = 20;
-int position = 0;
-bool increment = true;
+// int start = -30;
+// int finish = 20;
+// int position = 0;
+bool finish = false;
+int totalInput = 0;
+//bool increment = true;
 
-double deviceInput[BUFF_DIMENS];
-double devicePosition[BUFF_DIMENS];
 //static void redraw(void);
 
 void* readerFunc(void *arg) {
-	double delta = 0;
-	int i = 0;
-
-	while(true) {
-		delta = (double)rand() / (double)RAND_MAX;
-		startAppend();
-		deviceInput[i] = delta;
-		printf("reader %d: %f\n", i, delta);
+	
+	FILE *device_file;
+    char line[MAX_LINE_LENGTH]; 
+    
+    device_file = fopen("device.txt", "r"); 
+    
+    if (device_file == NULL) {
+        printf("Can't open device.txt\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    int time;
+    double change;
+    
+    while (fgets(line, sizeof(line), device_file) ) {
+        sscanf(line, "%d %lf", &time, &change);
+		printf("At time: %d change of position: %lf\n", time, change);
 		fflush(stdout);
-		finishAppend();
+        appendInput(change);
+		totalInput++;
+    }
+    
+    fclose(device_file);
+	
+	finish = true;
 
-		i = (i + 1) % BUFF_DIMENS;
-	}
+	pthread_exit(NULL);
 }
 
 void* modelFunc(void *arg) {
-	double delta = 0;
+	double change = 0;
+	double position = 0;
+	int i = 0;
+
+	while(!(finish && i == totalInput)) {
+		change = takeInput();
+		printf("The position has changed by: %lf\n", change);
+		fflush(stdout);
+		
+		position += change;
+			
+		printf("Current position: %lf\n", position);
+		fflush(stdout);
+		appendPosition(position);
+		i++;
+	}
+	
+	pthread_exit(NULL);
+}
+
+void* viewFunc(void *arg) {
+	double position = 0;
+	int i = 0;
+
+	while(!(finish && i == totalInput)) {
+		position = takePosition();
+		printf("Position displayed: %lf\n", position);
+		fflush(stdout);
+		i++;
+	}
+	
+	pthread_exit(NULL);
+}
+
+void* controllerFunc(void *arg) {
+	/*double position = 0;
 	int i = 0;
 
 	while(true) {
-		startTake();
-		delta = deviceInput[i];
-		printf("model %d: %f\n", i, delta);
-		fflush(stdout);
-		finishTake();
+		startTakePosition();
+			// printf("The position has changed by: %lf\n", change);
+			// fflush(stdout);
+		finishTakePosition();			
+		
 		i = (i + 1) % BUFF_DIMENS;
-	}
+	}*/
 }
 
 int main(void) {
 	
-	initMonitor(BUFF_DIMENS);
+	initMonitorInput();
+	initMonitorPosition();
 	
 	pthread_t reader;
 	pthread_t model;
-	/*pthread_t view;
+	pthread_t view;
 	pthread_t controller;
-	pthread_t writer;*/
+	// pthread_t writer;
 	
-	if (pthread_create(&reader, NULL, (void *) readerFunc, (void *) 0)) {
-		printf("Error in creating readers threads");
+	if (pthread_create(&reader, NULL, (void *) readerFunc, (void *) 0) != 0) {
+		printf("Error in creating reader thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&model, NULL, (void *) modelFunc, (void *) 1)) {
-		printf("Error in creating readers threads");
+	if (pthread_create(&model, NULL, (void *) modelFunc, (void *) 1) != 0) {
+		printf("Error in creating model thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	/*if (pthread_create(&view, NULL, (void *) viewFunc, (void *) 2)) {
-		printf("Error in creating readers threads");
+	if (pthread_create(&view, NULL, (void *) viewFunc, (void *) 2) != 0) {
+		printf("Error in creating view thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&controller, NULL, (void *) controllerFunc, (void *) 3)) {
-		printf("Error in creating readers threads");
+	if (pthread_create(&controller, NULL, (void *) controllerFunc, (void *) 3) != 0) {
+		printf("Error in creating controller thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&writer, NULL, (void *) writerFunc, (void *) 4)) {
-		printf("Error in creating readers threads");
+	/*if (pthread_create(&writer, NULL, (void *) writerFunc, (void *) 4) != 0) {
+		printf("Error in creating writer thread");
 		exit(EXIT_FAILURE);
 	}*/
 	
 	if (pthread_join(reader, NULL)) {
-		printf("Error in joining readers threads");
+		printf("Error in joining reader thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_join(model, NULL)) {
-		printf("Error in joining readers threads");
+	if (pthread_join(model, NULL) != 0) {
+		printf("Error in joining model thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	/*if (pthread_join(view, NULL)) {
-		printf("Error in joining readers threads");
+	if (pthread_join(view, NULL) != 0) {
+		printf("Error in joining view thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_join(controller, NULL)) {
-		printf("Error in joining readers threads");
+	if (pthread_join(controller, NULL) != 0) {
+		printf("Error in joining controller thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_join(writer, NULL)) {
-		printf("Error in joining readers threads");
+	/*if (pthread_join(writer, NULL)) {
+		printf("Error in joining writer thread");
 		exit(EXIT_FAILURE);
 	}*/
 	
-	closeMonitor();
+	closeMonitorInput();
+	closeMonitorPosition();
 	exit(EXIT_SUCCESS); 
 	
     /*const int trigger   = (CLOCKS_PER_SEC * 50) / 1000;  // 500 ms in clocks.
