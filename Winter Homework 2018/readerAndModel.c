@@ -6,7 +6,7 @@
 pthread_cond_t notEmpy;
 pthread_cond_t notFull;
 int avail;
-int dim_buff;
+int buff_dim;
 
 pthread_mutex_t mtx;
  
@@ -16,13 +16,13 @@ void startAppend() {
 		exit(EXIT_FAILURE);
 	}
 	
-	while (avail == dim_buff) {
+	while (avail == buff_dim) {
 		if (pthread_cond_wait(&notFull, &mtx) != 0) {
 				printf("pthread_cond_wait\n");
 				exit(EXIT_FAILURE);
 		}
 	}			
-	avail++;
+
 
 	if (pthread_mutex_unlock(&mtx) != 0) {
 		printf("pthread_mutex_unlock\n");
@@ -35,6 +35,8 @@ void finishAppend() {
 		printf("pthread_mutex_lock\n");
 		exit(EXIT_FAILURE);
 	}
+	
+	avail++;
 
 	if (pthread_cond_signal(&notEmpy) != 0) {
 		printf("pthread_cond_signal\n");
@@ -58,8 +60,8 @@ void startTake() {
 			printf("pthread_cond_wait\n");
 			exit(EXIT_FAILURE);
 		}			
-	}  
-
+	} 
+	
 	if (pthread_mutex_unlock(&mtx) != 0) {
 		printf("pthread_mutex_unlock\n");
 		exit(EXIT_FAILURE);
@@ -71,12 +73,13 @@ void finishTake() {
 		printf("pthread_mutex_lock\n");
 		exit(EXIT_FAILURE);
 	}
+	
+	avail--;
 
 	if (pthread_cond_signal(&notFull) != 0) {
 		printf("pthread_cond_signal\n");
 		exit(EXIT_FAILURE);
 	}
-	avail--;
 
 	if (pthread_mutex_unlock(&mtx) != 0) {
 		printf("pthread_mutex_unlock\n");
@@ -84,7 +87,7 @@ void finishTake() {
 	} 
 }
 
-void initMonitor(int dim) {
+void initMonitor(int dim) {	
 	if (pthread_mutex_init(&mtx, NULL) != 0) {
 		printf("Error in mutex init\n");
 		exit(EXIT_FAILURE);
@@ -100,11 +103,11 @@ void initMonitor(int dim) {
 		exit(EXIT_FAILURE);
 	}
 
-	dim_buff = dim;
+	buff_dim = dim;
 	avail = 0;
 }
 
-void closeMonitor() {
+void closeMonitor() {	
 	if (pthread_mutex_destroy(&mtx) != 0) {
 		printf("Error in mutex destroy\n");
 		exit(EXIT_FAILURE);

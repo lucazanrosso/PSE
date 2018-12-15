@@ -18,8 +18,8 @@ int finish = 20;
 int position = 0;
 bool increment = true;
 
-double deviceInput[BUFF_DIMENS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-double devicePosition[BUFF_DIMENS] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+double deviceInput[BUFF_DIMENS];
+double devicePosition[BUFF_DIMENS];
 //static void redraw(void);
 
 void* readerFunc(void *arg) {
@@ -31,7 +31,7 @@ void* readerFunc(void *arg) {
 		startAppend();
 		deviceInput[i] = delta;
 		printf("reader %d: %f\n", i, delta);
-		//fflush(stdout);
+		fflush(stdout);
 		finishAppend();
 
 		i = (i + 1) % BUFF_DIMENS;
@@ -46,7 +46,7 @@ void* modelFunc(void *arg) {
 		startTake();
 		delta = deviceInput[i];
 		printf("model %d: %f\n", i, delta);
-		//fflush(stdout);
+		fflush(stdout);
 		finishTake();
 		i = (i + 1) % BUFF_DIMENS;
 	}
