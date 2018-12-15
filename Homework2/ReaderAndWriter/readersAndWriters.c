@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "readersAndModel.h"
+#include "readersAndWriters.h"
 
 // Global variables
 

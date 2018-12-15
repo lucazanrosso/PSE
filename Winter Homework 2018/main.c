@@ -6,7 +6,6 @@
 #include <pthread.h>
 
 #include "readerAndModel.h"
-#include "model.h"
 
 #define WIDTH 80
 #define HEIGHT 9
@@ -19,22 +18,77 @@ int finish = 20;
 int position = 0;
 bool increment = true;
 
-int thread_id[NUM_THREAD]  = {0, 1, 2, 3, 4};
-double deviceInput[BUFF_DIMENS] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-double devicePosition[BUFF_DIMENS];
+double deviceInput[BUFF_DIMENS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+double devicePosition[BUFF_DIMENS] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 //static void redraw(void);
+
+void* readerFunc(void *arg) {
+	double delta = 0;
+	int i = 0;
+
+	while(true) {
+		delta = (double)rand() / (double)RAND_MAX;
+		startAppend();
+		deviceInput[i] = delta;
+		printf("reader %d: %f\n", i, delta);
+		//fflush(stdout);
+		finishAppend();
+
+		i = (i + 1) % BUFF_DIMENS;
+	}
+}
+
+void* modelFunc(void *arg) {
+	double delta = 0;
+	int i = 0;
+
+	while(true) {
+		startTake();
+		delta = deviceInput[i];
+		printf("model %d: %f\n", i, delta);
+		//fflush(stdout);
+		finishTake();
+		i = (i + 1) % BUFF_DIMENS;
+	}
+}
 
 int main(void) {
 	
-	initMonitor();
+	initMonitor(BUFF_DIMENS);
 	
-	//pthread_t reader;
+	pthread_t reader;
 	pthread_t model;
-	//pthread_t view;
-	//pthread_t controller;
+	/*pthread_t view;
+	pthread_t controller;
+	pthread_t writer;*/
 	
-	if (pthread_create(&model, NULL, (void *) modelFunc, (void *) deviceInput)) {
+	if (pthread_create(&reader, NULL, (void *) readerFunc, (void *) 0)) {
 		printf("Error in creating readers threads");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_create(&model, NULL, (void *) modelFunc, (void *) 1)) {
+		printf("Error in creating readers threads");
+		exit(EXIT_FAILURE);
+	}
+	
+	/*if (pthread_create(&view, NULL, (void *) viewFunc, (void *) 2)) {
+		printf("Error in creating readers threads");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_create(&controller, NULL, (void *) controllerFunc, (void *) 3)) {
+		printf("Error in creating readers threads");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_create(&writer, NULL, (void *) writerFunc, (void *) 4)) {
+		printf("Error in creating readers threads");
+		exit(EXIT_FAILURE);
+	}*/
+	
+	if (pthread_join(reader, NULL)) {
+		printf("Error in joining readers threads");
 		exit(EXIT_FAILURE);
 	}
 	
@@ -42,6 +96,21 @@ int main(void) {
 		printf("Error in joining readers threads");
 		exit(EXIT_FAILURE);
 	}
+	
+	/*if (pthread_join(view, NULL)) {
+		printf("Error in joining readers threads");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_join(controller, NULL)) {
+		printf("Error in joining readers threads");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_join(writer, NULL)) {
+		printf("Error in joining readers threads");
+		exit(EXIT_FAILURE);
+	}*/
 	
 	closeMonitor();
 	exit(EXIT_SUCCESS); 
