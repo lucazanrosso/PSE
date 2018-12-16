@@ -8,19 +8,19 @@
 #include "monitorInput.h"
 #include "monitorPosition.h"
 
-#define WIDTH 80
-#define HEIGHT 9
+#define DISPLAY_WIDTH 80
+#define INITIAL_POSITION 0
 
 #define MAX_LINE_LENGTH 80
 
-// int start = -30;
-// int finish = 20;
-// int position = 0;
-bool finish = false;
+int initialWall = -30;
+int finalWall = 20;
+
+bool readerHasFinished = false;
 int totalInput = 0;
 //bool increment = true;
 
-//static void redraw(void);
+void displayPosition(double position);
 
 void* readerFunc(void *arg) {
 	
@@ -39,15 +39,14 @@ void* readerFunc(void *arg) {
     
     while (fgets(line, sizeof(line), device_file) ) {
         sscanf(line, "%d %lf", &time, &change);
-		printf("At time: %d change of position: %lf\n", time, change);
-		fflush(stdout);
+		// printf("At time: %d change of position: %lf\n", time, change);
+		// fflush(stdout);
         appendInput(change);
 		totalInput++;
     }
     
     fclose(device_file);
-	
-	finish = true;
+	readerHasFinished = true;
 
 	pthread_exit(NULL);
 }
@@ -57,15 +56,19 @@ void* modelFunc(void *arg) {
 	double position = 0;
 	int i = 0;
 
-	while(!(finish && i == totalInput)) {
+	while(!(readerHasFinished && i == totalInput)) {
 		change = takeInput();
-		printf("The position has changed by: %lf\n", change);
-		fflush(stdout);
+		// printf("The position has changed by: %lf\n", change);
+		// fflush(stdout);
 		
 		position += change;
+		if (position > finalWall)
+			position = finalWall;
+		else if (position < initialWall)
+			position = initialWall;
 			
-		printf("Current position: %lf\n", position);
-		fflush(stdout);
+		// printf("Current position: %lf\n", position);
+		// fflush(stdout);
 		appendPosition(position);
 		i++;
 	}
@@ -76,19 +79,22 @@ void* modelFunc(void *arg) {
 void* viewFunc(void *arg) {
 	double position = 0;
 	int i = 0;
-
-	while(!(finish && i == totalInput)) {
+	
+	printf("\n\n\n");
+	while(!(readerHasFinished && i == totalInput)) {
 		position = takePosition();
-		printf("Position displayed: %lf\n", position);
-		fflush(stdout);
+		// printf("Position displayed: %lf\n", position);
+		// fflush(stdout);
+		displayPosition(position);
 		i++;
 	}
+	printf("\n\n\n");
 	
 	pthread_exit(NULL);
 }
 
-void* controllerFunc(void *arg) {
-	/*double position = 0;
+/*void* controllerFunc(void *arg) {
+	double position = 0;
 	int i = 0;
 
 	while(true) {
@@ -98,8 +104,8 @@ void* controllerFunc(void *arg) {
 		finishTakePosition();			
 		
 		i = (i + 1) % BUFF_DIMENS;
-	}*/
-}
+	}
+}*/
 
 int main(void) {
 	
@@ -109,7 +115,7 @@ int main(void) {
 	pthread_t reader;
 	pthread_t model;
 	pthread_t view;
-	pthread_t controller;
+	// pthread_t controller;
 	// pthread_t writer;
 	
 	if (pthread_create(&reader, NULL, (void *) readerFunc, (void *) 0) != 0) {
@@ -127,10 +133,10 @@ int main(void) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&controller, NULL, (void *) controllerFunc, (void *) 3) != 0) {
+	/*if (pthread_create(&controller, NULL, (void *) controllerFunc, (void *) 3) != 0) {
 		printf("Error in creating controller thread");
 		exit(EXIT_FAILURE);
-	}
+	}*/
 	
 	/*if (pthread_create(&writer, NULL, (void *) writerFunc, (void *) 4) != 0) {
 		printf("Error in creating writer thread");
@@ -152,10 +158,10 @@ int main(void) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_join(controller, NULL) != 0) {
+	/*if (pthread_join(controller, NULL) != 0) {
 		printf("Error in joining controller thread");
 		exit(EXIT_FAILURE);
-	}
+	}*/
 	
 	/*if (pthread_join(writer, NULL)) {
 		printf("Error in joining writer thread");
@@ -165,47 +171,28 @@ int main(void) {
 	closeMonitorInput();
 	closeMonitorPosition();
 	exit(EXIT_SUCCESS); 
-	
-    /*const int trigger   = (CLOCKS_PER_SEC * 50) / 1000;  // 500 ms in clocks.
-    clock_t   prevClock = clock() - trigger;
-	
-	printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-	fflush(stdout);
-	
-    while (1) {
-		clock_t curClock = clock();
-
-        if (curClock - prevClock >= trigger) {
-            prevClock = curClock;
-            redraw();
-        }
-		
-    }*/
 }
 
-/*static void redraw(void) {
+void displayPosition(double position) {
+	
+	int pos;
+	if (position >= 0)
+		pos = (int) position + 0.5;
+	else
+		pos = (int) position - 0.5;
 
 	const char prompt[] = "";
-	printf("\r%*s\r%s", WIDTH, "", prompt);
-	for (int i = -WIDTH/2; i < WIDTH/2; i++) {
-		if (i < start - 1 || i > finish + 1)
+	printf("\r%*s\r%s", DISPLAY_WIDTH, "", prompt);
+	for (int i = -DISPLAY_WIDTH/2; i < DISPLAY_WIDTH/2; i++) {
+		if (i < initialWall - 1 || i > finalWall + 1)
 			printf(" ");
-		else if (i == start - 1 || i == finish + 1)
+		else if (i == initialWall - 1 || i == finalWall + 1)
 			printf("|");
-		else if (i == position)
+		else if (i == pos)
 			printf("O");
 		else
 			printf("-");		
 	}
 	fflush(stdout);
-	
-	if (position == finish)
-		increment = false;
-	else if (position == start)
-		increment = true;
-	
-	if (increment)
-		position++;
-	else
-		position--;
-}*/
+	usleep(100000);
+}
