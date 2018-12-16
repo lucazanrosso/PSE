@@ -2,7 +2,7 @@
 #define monitorPosition_h
 
 void appendPosition();
-double takePosition();
+double takePosition(int consumer);
 
 void initMonitorPosition();
 void closeMonitorPosition();

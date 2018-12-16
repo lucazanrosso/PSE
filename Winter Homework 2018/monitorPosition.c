@@ -6,12 +6,12 @@
 
 #define BUFF_DIMENS 10
 
-pthread_cond_t notEmpy;
-pthread_cond_t notFull;
-int avail;
+pthread_cond_t notEmptyPosition[2];
+pthread_cond_t notFullPosition;
+int availPosition[2];
 double devicePosition[BUFF_DIMENS];
-int iPosition = 0;
-int jPosition = 0;
+int producerPosition;
+int consumerPosition[2];
 
 pthread_mutex_t mtx;
  
@@ -21,23 +21,29 @@ void appendPosition(double change) {
 		exit(EXIT_FAILURE);
 	}
 	
-	while (avail == BUFF_DIMENS) {
-		if (pthread_cond_wait(&notFull, &mtx) != 0) {
+	while (availPosition[0] == BUFF_DIMENS || availPosition[1] == BUFF_DIMENS) {
+		if (pthread_cond_wait(&notFullPosition, &mtx) != 0) {
 				printf("pthread_cond_wait\n");
 				exit(EXIT_FAILURE);
 		}
 	}
 	
-	devicePosition[iPosition] = change;
+	devicePosition[producerPosition] = change;
 
-	avail++;
+	availPosition[0]++;
+	availPosition[1]++;
 
-	if (pthread_cond_signal(&notEmpy) != 0) {
+	if (pthread_cond_signal(&notEmptyPosition[0]) != 0) {
 		printf("pthread_cond_signal\n");
 		exit(EXIT_FAILURE);
 	}
 	
-	iPosition = (iPosition + 1) % BUFF_DIMENS;
+	if (pthread_cond_signal(&notEmptyPosition[1]) != 0) {
+		printf("pthread_cond_signal\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	producerPosition = (producerPosition + 1) % BUFF_DIMENS;
 
 	if (pthread_mutex_unlock(&mtx) != 0) {
 		printf("pthread_mutex_unlock\n");
@@ -45,29 +51,30 @@ void appendPosition(double change) {
 	}
 }
 
-double takePosition() {
+double takePosition(int consumer) {
 	if (pthread_mutex_lock(&mtx) != 0) {
 		printf("pthread_mutex_lock\n");
 		exit(EXIT_FAILURE);
 	}
 
-	while (avail == 0) {
-		if (pthread_cond_wait(&notEmpy, &mtx) != 0) {
+	while (availPosition[consumer] == 0) {
+		if (pthread_cond_wait(&notEmptyPosition[consumer], &mtx) != 0) {
 			printf("pthread_cond_wait\n");
 			exit(EXIT_FAILURE);
 		}			
 	}
 	
-	double change = devicePosition[jPosition];
+	double change = devicePosition[consumerPosition[consumer]];
 	
-	avail--;
+	availPosition[consumer]--;
 
-	if (pthread_cond_signal(&notFull) != 0) {
-		printf("pthread_cond_signal\n");
-		exit(EXIT_FAILURE);
-	}
+	if (availPosition[consumer] >= availPosition[sizeof(availPosition) - consumer - 1])
+		if (pthread_cond_signal(&notFullPosition) != 0) {
+			printf("pthread_cond_signal\n");
+			exit(EXIT_FAILURE);
+		}
 	
-	jPosition = (jPosition + 1) % BUFF_DIMENS;
+	consumerPosition[consumer] = (consumerPosition[consumer] + 1) % BUFF_DIMENS;
 	
 	if (pthread_mutex_unlock(&mtx) != 0) {
 		printf("pthread_mutex_unlock\n");
@@ -83,17 +90,27 @@ void initMonitorPosition() {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_cond_init(&notEmpy, NULL) !=0) {
+	if (pthread_cond_init(&notEmptyPosition[0], NULL) !=0) {
+		printf("Error in cond init\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_cond_init(&notEmptyPosition[1], NULL) !=0) {
 		printf("Error in cond init\n");
 		exit(EXIT_FAILURE);
 	}
 
-	if (pthread_cond_init(&notFull, NULL) != 0) {
+	if (pthread_cond_init(&notFullPosition, NULL) != 0) {
 		printf("Error in cond init\n");
 		exit(EXIT_FAILURE);
 	}
 
-	avail = 0;
+	availPosition[0] = 0;
+	availPosition[1] = 0;
+	
+	producerPosition = 0;
+	consumerPosition[0] = 0;
+	consumerPosition[1] = 0;
 }
 
 void closeMonitorPosition() {	
@@ -102,12 +119,17 @@ void closeMonitorPosition() {
 		exit(EXIT_FAILURE);
 	}
 
-	if (pthread_cond_destroy(&notEmpy) != 0) {
+	if (pthread_cond_destroy(&notEmptyPosition[0]) != 0) {
+		printf("Error in cond destroy\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_cond_destroy(&notEmptyPosition[1]) != 0) {
 		printf("Error in cond destroy\n");
 		exit(EXIT_FAILURE);
 	}
 
-	if (pthread_cond_destroy(&notFull) != 0) {
+	if (pthread_cond_destroy(&notFullPosition) != 0) {
 		printf("Error in cond destroy\n");
 		exit(EXIT_FAILURE);
 	}

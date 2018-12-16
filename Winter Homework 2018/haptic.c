@@ -15,10 +15,12 @@
 
 int initialWall = -30;
 int finalWall = 20;
+int timeView = 12;
+int timeController = 20;
 
 bool readerHasFinished = false;
+bool modelHasFinished = false;
 int totalInput = 0;
-//bool increment = true;
 
 void displayPosition(double position);
 
@@ -37,14 +39,15 @@ void* readerFunc(void *arg) {
     int time;
     double change;
     
-    while (fgets(line, sizeof(line), device_file) ) {
+    while (fgets(line, sizeof(line), device_file) != NULL) {
         sscanf(line, "%d %lf", &time, &change);
-		// printf("At time: %d change of position: %lf\n", time, change);
-		// fflush(stdout);
         appendInput(change);
+		// printf("At time: %d change of position: %lf:\n", time, change);
+		// fflush(stdout);
 		totalInput++;
     }
     
+
     fclose(device_file);
 	readerHasFinished = true;
 
@@ -53,12 +56,12 @@ void* readerFunc(void *arg) {
 
 void* modelFunc(void *arg) {
 	double change = 0;
-	double position = 0;
+	double position = INITIAL_POSITION;
 	int i = 0;
 
 	while(!(readerHasFinished && i == totalInput)) {
 		change = takeInput();
-		// printf("The position has changed by: %lf\n", change);
+		// printf("The position %d has changed by: %lf\n", i, change);
 		// fflush(stdout);
 		
 		position += change;
@@ -67,11 +70,13 @@ void* modelFunc(void *arg) {
 		else if (position < initialWall)
 			position = initialWall;
 			
-		// printf("Current position: %lf\n", position);
-		// fflush(stdout);
 		appendPosition(position);
+		// printf("Model position %d: %lf\n", i, position);
+		// fflush(stdout);
 		i++;
 	}
+	
+	modelHasFinished = true;
 	
 	pthread_exit(NULL);
 }
@@ -81,33 +86,54 @@ void* viewFunc(void *arg) {
 	int i = 0;
 	
 	printf("\n\n\n");
-	while(!(readerHasFinished && i == totalInput)) {
-		position = takePosition();
-		// printf("Position displayed: %lf\n", position);
+	while(!(modelHasFinished && i == totalInput)) {
+		position = takePosition(0);
+		// printf("View position %d: %lf\n", i, position);
 		// fflush(stdout);
 		displayPosition(position);
 		i++;
+		usleep(timeView * 1000);
 	}
 	printf("\n\n\n");
 	
 	pthread_exit(NULL);
 }
 
-/*void* controllerFunc(void *arg) {
+void* controllerFunc(void *arg) {
 	double position = 0;
 	int i = 0;
-
-	while(true) {
-		startTakePosition();
-			// printf("The position has changed by: %lf\n", change);
-			// fflush(stdout);
-		finishTakePosition();			
-		
-		i = (i + 1) % BUFF_DIMENS;
+	
+	FILE *outputFile = fopen("output.txt", "w");
+    if (outputFile == NULL) {
+        printf("Can't open output.txt\n");
+        exit(EXIT_FAILURE);
+    }
+	
+	while(!(modelHasFinished && i == totalInput)) {
+		position = takePosition(1);
+		// printf("Controller position %d: %lf\n", i, position);
+		// fflush(stdout);
+		// usleep(timeController * 100);
+		fprintf(outputFile, "%d %lf \n", i, position);
+		i++;
 	}
-}*/
+	
+	fclose(outputFile);
+	
+	pthread_exit(NULL);
+}
 
-int main(void) {
+int main(int argc, char **argv) {
+	
+	if (argc != 5) {
+		printf("Wrong command line input");
+		exit(EXIT_FAILURE);
+	}
+	
+	initialWall = strtol(argv[1], NULL, 10);
+	finalWall = strtol(argv[2], NULL, 10);
+	timeController = strtol(argv[3], NULL, 10);
+	timeView = strtol(argv[4], NULL, 10);	
 	
 	initMonitorInput();
 	initMonitorPosition();
@@ -115,8 +141,7 @@ int main(void) {
 	pthread_t reader;
 	pthread_t model;
 	pthread_t view;
-	// pthread_t controller;
-	// pthread_t writer;
+	pthread_t controller;
 	
 	if (pthread_create(&reader, NULL, (void *) readerFunc, (void *) 0) != 0) {
 		printf("Error in creating reader thread");
@@ -133,15 +158,10 @@ int main(void) {
 		exit(EXIT_FAILURE);
 	}
 	
-	/*if (pthread_create(&controller, NULL, (void *) controllerFunc, (void *) 3) != 0) {
+	if (pthread_create(&controller, NULL, (void *) controllerFunc, (void *) 3) != 0) {
 		printf("Error in creating controller thread");
 		exit(EXIT_FAILURE);
-	}*/
-	
-	/*if (pthread_create(&writer, NULL, (void *) writerFunc, (void *) 4) != 0) {
-		printf("Error in creating writer thread");
-		exit(EXIT_FAILURE);
-	}*/
+	}
 	
 	if (pthread_join(reader, NULL)) {
 		printf("Error in joining reader thread");
@@ -158,15 +178,10 @@ int main(void) {
 		exit(EXIT_FAILURE);
 	}
 	
-	/*if (pthread_join(controller, NULL) != 0) {
+	if (pthread_join(controller, NULL) != 0) {
 		printf("Error in joining controller thread");
 		exit(EXIT_FAILURE);
-	}*/
-	
-	/*if (pthread_join(writer, NULL)) {
-		printf("Error in joining writer thread");
-		exit(EXIT_FAILURE);
-	}*/
+	}
 	
 	closeMonitorInput();
 	closeMonitorPosition();
@@ -194,5 +209,4 @@ void displayPosition(double position) {
 			printf("-");		
 	}
 	fflush(stdout);
-	usleep(100000);
 }

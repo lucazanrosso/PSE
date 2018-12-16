@@ -10,8 +10,8 @@ pthread_cond_t notEmpyInput;
 pthread_cond_t notFullInput;
 int availInput;
 double deviceInput[BUFF_DIMENS];
-int iInput = 0;
-int jInput = 0;
+int producerInput;
+int consumerInput;
 
 pthread_mutex_t mtxInput;
  
@@ -28,16 +28,18 @@ void appendInput(double change) {
 		}
 	}
 	
-	deviceInput[iInput] = change;
-
+	deviceInput[producerInput] = change;
+	producerInput = (producerInput + 1) % BUFF_DIMENS;
+	
 	availInput++;
+	// printf("availInput: %d\n", availInput);
+	// fflush(stdout);
 
 	if (pthread_cond_signal(&notEmpyInput) != 0) {
 		printf("pthread_cond_signal\n");
 		exit(EXIT_FAILURE);
 	}
-	
-	iInput = (iInput + 1) % BUFF_DIMENS;
+
 
 	if (pthread_mutex_unlock(&mtxInput) != 0) {
 		printf("pthread_mutex_unlock\n");
@@ -58,7 +60,8 @@ double takeInput() {
 		}			
 	}
 	
-	double change = deviceInput[jInput];
+	double change = deviceInput[consumerInput];
+	consumerInput = (consumerInput + 1) % BUFF_DIMENS;
 	
 	availInput--;
 
@@ -66,8 +69,7 @@ double takeInput() {
 		printf("pthread_cond_signal\n");
 		exit(EXIT_FAILURE);
 	}
-	
-	jInput = (jInput + 1) % BUFF_DIMENS;
+
 	
 	if (pthread_mutex_unlock(&mtxInput) != 0) {
 		printf("pthread_mutex_unlock\n");
@@ -94,6 +96,9 @@ void initMonitorInput() {
 	}
 
 	availInput = 0;
+	
+	producerInput = 0;
+	consumerInput = 0;
 }
 
 void closeMonitorInput() {	
