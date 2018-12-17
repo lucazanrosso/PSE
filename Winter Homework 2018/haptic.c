@@ -13,10 +13,10 @@
 
 #define MAX_LINE_LENGTH 80
 
-int initialWall = -30;
-int finalWall = 20;
-int timeView = 12;
-int timeController = 20;
+int initialWall;
+int finalWall;
+int timeView;
+int timeController;
 
 bool readerHasFinished = false;
 bool modelHasFinished = false;
@@ -41,12 +41,12 @@ void* readerFunc(void *arg) {
     
     while (fgets(line, sizeof(line), device_file) != NULL) {
         sscanf(line, "%d %lf", &time, &change);
-        appendInput(change);
-		// printf("At time: %d change of position: %lf:\n", time, change);
-		// fflush(stdout);
+		printf("At time: %d change of position: %lf\n", time, change);
+		fflush(stdout);
+		appendInput(change);
 		totalInput++;
-    }
-    
+		usleep(10000);
+    } 
 
     fclose(device_file);
 	readerHasFinished = true;
@@ -58,8 +58,8 @@ void* modelFunc(void *arg) {
 	double change = 0;
 	double position = INITIAL_POSITION;
 	int i = 0;
-
-	while(!(readerHasFinished && i == totalInput)) {
+	
+	while(true) {
 		change = takeInput();
 		// printf("The position %d has changed by: %lf\n", i, change);
 		// fflush(stdout);
@@ -75,32 +75,27 @@ void* modelFunc(void *arg) {
 		// fflush(stdout);
 		i++;
 	}
-	
-	modelHasFinished = true;
-	
-	pthread_exit(NULL);
 }
 
 void* viewFunc(void *arg) {
 	double position = 0;
-	int i = 0;
+	int time = 0;
 	
 	printf("\n\n\n");
-	while(!(modelHasFinished && i == totalInput)) {
-		position = takePosition(0);
-		// printf("View position %d: %lf\n", i, position);
-		// fflush(stdout);
-		displayPosition(position);
-		i++;
-		usleep(timeView * 1000);
+	while(true) {
+		position = takePosition();
+		printf("View position at time %d: %lf\n", time, position);
+		fflush(stdout);
+		// displayPosition(position);
+		usleep(timeView * 10000);
+		time += timeView;
 	}
 	printf("\n\n\n");
-	
-	pthread_exit(NULL);
 }
 
 void* controllerFunc(void *arg) {
 	double position = 0;
+	int time = 0;
 	int i = 0;
 	
 	FILE *outputFile = fopen("output.txt", "w");
@@ -109,18 +104,17 @@ void* controllerFunc(void *arg) {
         exit(EXIT_FAILURE);
     }
 	
-	while(!(modelHasFinished && i == totalInput)) {
-		position = takePosition(1);
-		// printf("Controller position %d: %lf\n", i, position);
-		// fflush(stdout);
-		// usleep(timeController * 100);
+	while(true) {
+		position = takePosition();
 		fprintf(outputFile, "%d %lf \n", i, position);
+		printf("Controller position at time %d: %lf\n", time, position);
+		fflush(stdout);
+		usleep(timeController * 10000);
+		time += timeController;
 		i++;
 	}
 	
 	fclose(outputFile);
-	
-	pthread_exit(NULL);
 }
 
 int main(int argc, char **argv) {
@@ -136,7 +130,7 @@ int main(int argc, char **argv) {
 	timeView = strtol(argv[4], NULL, 10);	
 	
 	initMonitorInput();
-	initMonitorPosition();
+	initMonitorPosition(INITIAL_POSITION);
 	
 	pthread_t reader;
 	pthread_t model;

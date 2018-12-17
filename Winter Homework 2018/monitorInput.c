@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <time.h>
 
-#define BUFF_DIMENS 10
+#define BUFF_DIMENS 5
 
 pthread_cond_t notEmpyInput;
 pthread_cond_t notFullInput;
