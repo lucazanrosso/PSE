@@ -15,12 +15,6 @@
 
 int initialWall;
 int finalWall;
-int timeView;
-int timeController;
-
-bool readerHasFinished = false;
-bool modelHasFinished = false;
-int totalInput = 0;
 
 void displayPosition(double position);
 
@@ -41,15 +35,13 @@ void* readerFunc(void *arg) {
     
     while (fgets(line, sizeof(line), device_file) != NULL) {
         sscanf(line, "%d %lf", &time, &change);
-		printf("At time: %d change of position: %lf\n", time, change);
-		fflush(stdout);
+		// printf("At time: %d change of position: %lf\n", time, change);
+		// fflush(stdout);
 		appendInput(change);
-		totalInput++;
-		usleep(10000);
+		usleep(100000);
     } 
 
     fclose(device_file);
-	readerHasFinished = true;
 
 	pthread_exit(NULL);
 }
@@ -80,13 +72,14 @@ void* modelFunc(void *arg) {
 void* viewFunc(void *arg) {
 	double position = 0;
 	int time = 0;
+	int timeView = *((int*) arg);
 	
 	printf("\n\n\n");
 	while(true) {
 		position = takePosition();
-		printf("View position at time %d: %lf\n", time, position);
-		fflush(stdout);
-		// displayPosition(position);
+		// printf("View position at time %d: %lf\n", time, position);
+		// fflush(stdout);
+		displayPosition(position);
 		usleep(timeView * 10000);
 		time += timeView;
 	}
@@ -96,25 +89,24 @@ void* viewFunc(void *arg) {
 void* controllerFunc(void *arg) {
 	double position = 0;
 	int time = 0;
-	int i = 0;
+	int timeController = *((int*) arg);
 	
-	FILE *outputFile = fopen("output.txt", "w");
-    if (outputFile == NULL) {
-        printf("Can't open output.txt\n");
-        exit(EXIT_FAILURE);
-    }
+	remove("output.txt");
 	
 	while(true) {
+		FILE *outputFile = fopen("output.txt", "a");
+		if (outputFile == NULL) {
+			printf("Can't open output.txt\n");
+			exit(EXIT_FAILURE);
+		}
 		position = takePosition();
-		fprintf(outputFile, "%d %lf \n", i, position);
-		printf("Controller position at time %d: %lf\n", time, position);
-		fflush(stdout);
+		fprintf(outputFile, "%d %lf \n", time, position);
+		fclose(outputFile);
+		// printf("Controller position at time %d: %lf\n", time, position);
+		// fflush(stdout);
 		usleep(timeController * 10000);
 		time += timeController;
-		i++;
 	}
-	
-	fclose(outputFile);
 }
 
 int main(int argc, char **argv) {
@@ -126,8 +118,8 @@ int main(int argc, char **argv) {
 	
 	initialWall = strtol(argv[1], NULL, 10);
 	finalWall = strtol(argv[2], NULL, 10);
-	timeController = strtol(argv[3], NULL, 10);
-	timeView = strtol(argv[4], NULL, 10);	
+	int timeController = strtol(argv[3], NULL, 10);
+	int timeView = strtol(argv[4], NULL, 10);	
 	
 	initMonitorInput();
 	initMonitorPosition(INITIAL_POSITION);
@@ -147,12 +139,12 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&view, NULL, (void *) viewFunc, (void *) 2) != 0) {
+	if (pthread_create(&view, NULL, (void *) viewFunc, (void *) &timeView) != 0) {
 		printf("Error in creating view thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&controller, NULL, (void *) controllerFunc, (void *) 3) != 0) {
+	if (pthread_create(&controller, NULL, (void *) controllerFunc, (void *) &timeController) != 0) {
 		printf("Error in creating controller thread");
 		exit(EXIT_FAILURE);
 	}
