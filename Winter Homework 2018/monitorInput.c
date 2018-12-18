@@ -4,14 +4,15 @@
 #include <stdbool.h>
 #include <time.h>
 
-#define BUFF_DIMENS 20
+#define BUFF_DIMENS 5
 
 pthread_cond_t notEmpyInput;
 pthread_cond_t notFullInput;
 int availInput;
 double deviceInput[BUFF_DIMENS];
-int producerInput;
-int consumerInput;
+int producerIndex;
+int consumerIndex;
+bool iHaveToDie = false;
 
 pthread_mutex_t mtxInput;
  
@@ -26,10 +27,17 @@ void appendInput(double change) {
 				printf("pthread_cond_wait\n");
 				exit(EXIT_FAILURE);
 		}
+		if (iHaveToDie) {
+			if (pthread_mutex_unlock(&mtxInput) != 0) {
+				printf("pthread_mutex_unlock\n");
+				exit(EXIT_FAILURE);
+			}
+			return;
+		}
 	}
 	
-	deviceInput[producerInput] = change;
-	producerInput = (producerInput + 1) % BUFF_DIMENS;
+	deviceInput[producerIndex] = change;
+	producerIndex = (producerIndex + 1) % BUFF_DIMENS;
 	
 	availInput++;
 	// printf("availInput: %d\n", availInput);
@@ -39,7 +47,6 @@ void appendInput(double change) {
 		printf("pthread_cond_signal\n");
 		exit(EXIT_FAILURE);
 	}
-
 
 	if (pthread_mutex_unlock(&mtxInput) != 0) {
 		printf("pthread_mutex_unlock\n");
@@ -57,11 +64,18 @@ double takeInput() {
 		if (pthread_cond_wait(&notEmpyInput, &mtxInput) != 0) {
 			printf("pthread_cond_wait\n");
 			exit(EXIT_FAILURE);
-		}			
+		}
+		if (iHaveToDie) {
+			if (pthread_mutex_unlock(&mtxInput) != 0) {
+				printf("pthread_mutex_unlock\n");
+				exit(EXIT_FAILURE);
+			}
+			return 0;
+		}
 	}
 	
-	double change = deviceInput[consumerInput];
-	consumerInput = (consumerInput + 1) % BUFF_DIMENS;
+	double change = deviceInput[consumerIndex];
+	consumerIndex = (consumerIndex + 1) % BUFF_DIMENS;
 	
 	availInput--;
 
@@ -69,7 +83,6 @@ double takeInput() {
 		printf("pthread_cond_signal\n");
 		exit(EXIT_FAILURE);
 	}
-
 	
 	if (pthread_mutex_unlock(&mtxInput) != 0) {
 		printf("pthread_mutex_unlock\n");
@@ -77,6 +90,30 @@ double takeInput() {
 	}
 	
 	return change;
+}
+
+void forceSignalingInput() {
+	if (pthread_mutex_lock(&mtxInput) != 0) {
+		printf("pthread_mutex_lock\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	iHaveToDie = true;
+	
+	if (pthread_cond_signal(&notFullInput) != 0) {
+		printf("pthread_cond_signal\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_cond_signal(&notEmpyInput) != 0) {
+		printf("pthread_cond_signal\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_mutex_unlock(&mtxInput) != 0) {
+		printf("pthread_mutex_unlock\n");
+		exit(EXIT_FAILURE);
+	}
 }
 
 void initMonitorInput() {	
@@ -95,10 +132,9 @@ void initMonitorInput() {
 		exit(EXIT_FAILURE);
 	}
 
-	availInput = 0;
-	
-	producerInput = 0;
-	consumerInput = 0;
+	availInput = 0;	
+	producerIndex = 0;
+	consumerIndex = 0;
 }
 
 void closeMonitorInput() {	

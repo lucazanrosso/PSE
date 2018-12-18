@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <signal.h>
 #include <time.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -16,9 +17,12 @@
 int initialWall;
 int finalWall;
 
+sigset_t signalMask;
+int untilIDie;
+
 void displayPosition(double position);
 
-void* readerFunc(void *arg) {
+void* interfaceFunc(void *arg) {
 	
 	FILE *device_file;
     char line[MAX_LINE_LENGTH]; 
@@ -33,16 +37,21 @@ void* readerFunc(void *arg) {
     int time;
     double change;
     
-    while (fgets(line, sizeof(line), device_file) != NULL) {
-        sscanf(line, "%d %lf", &time, &change);
+    while (untilIDie) {
+		if (fgets(line, sizeof(line), device_file) != NULL)
+			sscanf(line, "%d %lf", &time, &change);
+		else
+			change = 0;
 		// printf("At time: %d change of position: %lf\n", time, change);
 		// fflush(stdout);
 		appendInput(change);
-		usleep(100000);
-    } 
+		usleep(10000);
+    }
 
     fclose(device_file);
 
+	printf("Closing interface thread\n");
+	fflush(stdout);
 	pthread_exit(NULL);
 }
 
@@ -51,7 +60,7 @@ void* modelFunc(void *arg) {
 	double position = INITIAL_POSITION;
 	int i = 0;
 	
-	while(true) {
+	while(untilIDie) {
 		change = takeInput();
 		// printf("The position %d has changed by: %lf\n", i, change);
 		// fflush(stdout);
@@ -67,6 +76,10 @@ void* modelFunc(void *arg) {
 		// fflush(stdout);
 		i++;
 	}
+	
+	printf("Closing model thread\n");
+	fflush(stdout);
+	pthread_exit(NULL);
 }
 
 void* viewFunc(void *arg) {
@@ -75,7 +88,7 @@ void* viewFunc(void *arg) {
 	int timeView = *((int*) arg);
 	
 	printf("\n\n\n");
-	while(true) {
+	while(untilIDie) {
 		position = takePosition();
 		// printf("View position at time %d: %lf\n", time, position);
 		// fflush(stdout);
@@ -83,7 +96,10 @@ void* viewFunc(void *arg) {
 		usleep(timeView * 10000);
 		time += timeView;
 	}
-	printf("\n\n\n");
+	
+	printf("Closing view thread\n");
+	fflush(stdout);
+	pthread_exit(NULL);
 }
 
 void* controllerFunc(void *arg) {
@@ -93,7 +109,7 @@ void* controllerFunc(void *arg) {
 	
 	remove("output.txt");
 	
-	while(true) {
+	while(untilIDie) {
 		FILE *outputFile = fopen("output.txt", "a");
 		if (outputFile == NULL) {
 			printf("Can't open output.txt\n");
@@ -107,6 +123,28 @@ void* controllerFunc(void *arg) {
 		usleep(timeController * 10000);
 		time += timeController;
 	}
+	
+	printf("Closing controller thread\n");
+	fflush(stdout);
+	pthread_exit(NULL);
+}
+
+void* killerFunc(void *arg) {
+	
+	int signalCaught;
+
+    if (sigwait(&signalMask, &signalCaught)) {
+		printf("Error in handling signal\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (signalCaught == SIGINT) {
+		untilIDie = false;
+		forceSignalingInput();
+	}
+	
+	printf("\nClosing killer thread\n");
+	pthread_exit(NULL);
 }
 
 int main(int argc, char **argv) {
@@ -124,17 +162,27 @@ int main(int argc, char **argv) {
 	initMonitorInput();
 	initMonitorPosition(INITIAL_POSITION);
 	
-	pthread_t reader;
+	pthread_t interface;
 	pthread_t model;
 	pthread_t view;
 	pthread_t controller;
+	pthread_t killer;
 	
-	if (pthread_create(&reader, NULL, (void *) readerFunc, (void *) 0) != 0) {
-		printf("Error in creating reader thread");
+	sigemptyset (&signalMask);
+    sigaddset (&signalMask, SIGINT);
+	untilIDie = true;
+	
+	if (pthread_sigmask (SIG_BLOCK, &signalMask, NULL)) {
+		printf("Error in creating sigmask\n");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&model, NULL, (void *) modelFunc, (void *) 1) != 0) {
+	if (pthread_create(&interface, NULL, (void *) interfaceFunc, (void *) NULL) != 0) {
+		printf("Error in creating interface thread");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_create(&model, NULL, (void *) modelFunc, (void *) NULL) != 0) {
 		printf("Error in creating model thread");
 		exit(EXIT_FAILURE);
 	}
@@ -149,8 +197,13 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_join(reader, NULL)) {
-		printf("Error in joining reader thread");
+	if (pthread_create(&killer, NULL, (void *) killerFunc, (void *) NULL) != 0) {
+		printf("Error in creating killer thread");
+		exit(EXIT_FAILURE);
+	}
+	
+	if (pthread_join(interface, NULL)) {
+		printf("Error in joining interface thread");
 		exit(EXIT_FAILURE);
 	}
 	
@@ -169,8 +222,16 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
+	if (pthread_join(killer, NULL)) {
+		printf("Error in joining killer thread");
+		exit(EXIT_FAILURE);
+	}
+	
 	closeMonitorInput();
 	closeMonitorPosition();
+	
+	printf("EXIT SUCCESS\n");
+	fflush(stdout);
 	exit(EXIT_SUCCESS); 
 }
 
