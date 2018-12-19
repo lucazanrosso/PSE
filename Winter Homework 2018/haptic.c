@@ -14,13 +14,17 @@
 
 #define MAX_LINE_LENGTH 80
 
-int initialWall;
-int finalWall;
+struct CommandLine {
+    int initialWall;
+    int finalWall;
+    int timeController; 
+    int timeView;
+};
 
 sigset_t signalMask;
 int untilIDie;
 
-void displayPosition(double position);
+void displayPosition(double position, int initialWall, int finalWall);
 
 void* interfaceFunc(void *arg) {
 	
@@ -37,15 +41,19 @@ void* interfaceFunc(void *arg) {
     int time;
     double change;
     
+	// struct timeval start, end;
+	// gettimeofday(&start, NULL);
     while (untilIDie) {
 		if (fgets(line, sizeof(line), device_file) != NULL)
 			sscanf(line, "%d %lf", &time, &change);
 		else
-			change = 0;
-		// printf("At time: %d change of position: %lf\n", time, change);
-		// fflush(stdout);
+			change = 0;		
 		appendInput(change);
-		usleep(10000);
+		// gettimeofday(&end, NULL);
+		// printf("At time: %ld change of position: %f\n", (end.tv_sec * 1000000 + end.tv_usec) - (start.tv_sec * 1000000 + start.tv_usec), change);
+		// fflush(stdout);
+		// gettimeofday(&start, NULL);
+		usleep(50000);
     }
 
     fclose(device_file);
@@ -56,6 +64,10 @@ void* interfaceFunc(void *arg) {
 }
 
 void* modelFunc(void *arg) {
+	struct CommandLine *commandLine = (struct CommandLine *) arg;
+	int initialWall = commandLine->initialWall;
+	int finalWall = commandLine->finalWall;
+	
 	double change = 0;
 	double position = INITIAL_POSITION;
 	int i = 0;
@@ -83,16 +95,19 @@ void* modelFunc(void *arg) {
 }
 
 void* viewFunc(void *arg) {
+	struct CommandLine *commandLine = (struct CommandLine *) arg;
+	int initialWall = commandLine->initialWall;
+	int finalWall = commandLine->finalWall;
+	int timeView = commandLine->timeView;
 	double position = 0;
 	int time = 0;
-	int timeView = *((int*) arg);
 	
 	printf("\n\n\n");
 	while(untilIDie) {
 		position = takePosition();
 		// printf("View position at time %d: %lf\n", time, position);
 		// fflush(stdout);
-		displayPosition(position);
+		displayPosition(position, initialWall, finalWall);
 		usleep(timeView * 10000);
 		time += timeView;
 	}
@@ -103,9 +118,10 @@ void* viewFunc(void *arg) {
 }
 
 void* controllerFunc(void *arg) {
+	struct CommandLine *commandLine = (struct CommandLine *) arg;
+	int timeController = commandLine->timeController;
 	double position = 0;
 	int time = 0;
-	int timeController = *((int*) arg);
 	
 	remove("output.txt");
 	
@@ -154,10 +170,10 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	initialWall = strtol(argv[1], NULL, 10);
-	finalWall = strtol(argv[2], NULL, 10);
-	int timeController = strtol(argv[3], NULL, 10);
-	int timeView = strtol(argv[4], NULL, 10);	
+	struct CommandLine commandLine = {strtol(argv[1], NULL, 10), 
+			strtol(argv[2], NULL, 10), 
+			strtol(argv[3], NULL, 10), 
+			strtol(argv[4], NULL, 10)};
 	
 	initMonitorInput();
 	initMonitorPosition(INITIAL_POSITION);
@@ -182,17 +198,17 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&model, NULL, (void *) modelFunc, (void *) NULL) != 0) {
+	if (pthread_create(&model, NULL, (void *) modelFunc, (void *) &commandLine) != 0) {
 		printf("Error in creating model thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&view, NULL, (void *) viewFunc, (void *) &timeView) != 0) {
+	if (pthread_create(&view, NULL, (void *) viewFunc, (void *) &commandLine) != 0) {
 		printf("Error in creating view thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&controller, NULL, (void *) controllerFunc, (void *) &timeController) != 0) {
+	if (pthread_create(&controller, NULL, (void *) controllerFunc, (void *) &commandLine) != 0) {
 		printf("Error in creating controller thread");
 		exit(EXIT_FAILURE);
 	}
@@ -235,7 +251,7 @@ int main(int argc, char **argv) {
 	exit(EXIT_SUCCESS); 
 }
 
-void displayPosition(double position) {
+void displayPosition(double position, int initialWall, int finalWall) {
 	
 	int pos;
 	if (position >= 0)
