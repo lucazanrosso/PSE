@@ -53,7 +53,7 @@ void* interfaceFunc(void *arg) {
 		// printf("At time: %ld change of position: %f\n", (end.tv_sec * 1000000 + end.tv_usec) - (start.tv_sec * 1000000 + start.tv_usec), change);
 		// fflush(stdout);
 		// gettimeofday(&start, NULL);
-		usleep(50000);
+		usleep(100000);
     }
 
     fclose(device_file);

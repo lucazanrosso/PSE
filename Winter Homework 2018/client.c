@@ -10,12 +10,10 @@
 #define HOSTNAME "127.0.0.1"
 #define PORT "3490"
 
-int main(int argc, char *argv[]) {
+int main(void) {
 	
-	int sock, numbytes;
+	int sockfd;
 	struct addrinfo hints, *res;
-	
-	// argv
 
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_UNSPEC;
@@ -26,12 +24,12 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	if ((sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1) {
+	if ((sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1) {
 		perror("client: socket");
 	}
 
-	if (connect(sock, res->ai_addr, res->ai_addrlen) == -1) {
-		close(sock);
+	if (connect(sockfd, res->ai_addr, res->ai_addrlen) == -1) {
+		close(sockfd);
 		perror("client: connect");
 	}
 
@@ -42,15 +40,15 @@ int main(int argc, char *argv[]) {
 
 	freeaddrinfo(res); // all done with this structure
 
-	double change;
-	if ((numbytes = recv(sock, &change, sizeof(change), 0)) == -1) {
+	double change = 16.0;
+	if (write(sockfd, &change, sizeof(change)) == -1) {
 	    perror("client: failed to send message\n");
 	    exit(1);
 	}
 	
-	printf("client: received '%f'\n", change);	
+	// printf("client: received '%f'\n", change);	
 
-	close(sock);
+	close(sockfd);
 
 	return 0;
 }
