@@ -1,12 +1,14 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <signal.h>
-#include <time.h>
+// #include <time.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
 
+#include "server.h"
 #include "monitorInput.h"
+#include "monitorRemoteInput.h"
 #include "monitorPosition.h"
 
 #define DISPLAY_WIDTH 80
@@ -22,7 +24,7 @@ struct CommandLine {
 };
 
 sigset_t signalMask;
-int untilIDie;
+bool extern untilIDie;
 
 void displayPosition(double position, int initialWall, int finalWall);
 
@@ -107,7 +109,7 @@ void* viewFunc(void *arg) {
 		position = takePosition();
 		// printf("View position at time %d: %lf\n", time, position);
 		// fflush(stdout);
-		displayPosition(position, initialWall, finalWall);
+		// displayPosition(position, initialWall, finalWall);
 		usleep(timeView * 10000);
 		time += timeView;
 	}
@@ -176,6 +178,7 @@ int main(int argc, char **argv) {
 			strtol(argv[4], NULL, 10)};
 	
 	initMonitorInput();
+	initMonitorRemoteInput();
 	initMonitorPosition(INITIAL_POSITION);
 	
 	pthread_t interface;
@@ -183,6 +186,7 @@ int main(int argc, char **argv) {
 	pthread_t view;
 	pthread_t controller;
 	pthread_t killer;
+	pthread_t server;
 	
 	sigemptyset (&signalMask);
     sigaddset (&signalMask, SIGINT);
@@ -218,6 +222,11 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
+	if (pthread_create(&server, NULL, (void *) serverFunc, (void *) NULL) != 0) {
+		printf("Error in creating server thread");
+		exit(EXIT_FAILURE);
+	}
+	
 	if (pthread_join(interface, NULL)) {
 		printf("Error in joining interface thread");
 		exit(EXIT_FAILURE);
@@ -243,7 +252,13 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
+	if (pthread_join(server, NULL)) {
+		printf("Error in joining server thread");
+		exit(EXIT_FAILURE);
+	}
+	
 	closeMonitorInput();
+	closeMonitorRemoteInput();
 	closeMonitorPosition();
 	
 	printf("EXIT SUCCESS\n");

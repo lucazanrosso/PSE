@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <time.h>
 
 #define BUFF_DIMENS 5
 
@@ -12,7 +11,7 @@ int availInput;
 double deviceInput[BUFF_DIMENS];
 int producerIndex;
 int consumerIndex;
-bool iHaveToDie = false;
+bool extern untilIDie;
 
 pthread_mutex_t mtxInput;
  
@@ -27,7 +26,7 @@ void appendInput(double change) {
 				printf("pthread_cond_wait\n");
 				exit(EXIT_FAILURE);
 		}
-		if (iHaveToDie) {
+		if (!untilIDie) {
 			if (pthread_mutex_unlock(&mtxInput) != 0) {
 				printf("pthread_mutex_unlock\n");
 				exit(EXIT_FAILURE);
@@ -65,7 +64,7 @@ double takeInput() {
 			printf("pthread_cond_wait\n");
 			exit(EXIT_FAILURE);
 		}
-		if (iHaveToDie) {
+		if (!untilIDie) {
 			if (pthread_mutex_unlock(&mtxInput) != 0) {
 				printf("pthread_mutex_unlock\n");
 				exit(EXIT_FAILURE);
@@ -97,8 +96,6 @@ void forceSignalingInput() {
 		printf("pthread_mutex_lock\n");
 		exit(EXIT_FAILURE);
 	}
-	
-	iHaveToDie = true;
 	
 	if (pthread_cond_signal(&notFullInput) != 0) {
 		printf("pthread_cond_signal\n");

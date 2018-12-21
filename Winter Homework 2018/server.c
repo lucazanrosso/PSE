@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -10,13 +11,19 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <pthread.h>
 
-#define PORT "3490"
+#include "monitorRemoteInput.h"
+
+#define PORT "3498"
 #define BACKLOG 5
+#define MAXDATASIZE 100
+
+bool extern untilIDie;
  
-int main(void) {
+void* serverFunc(void *arg) {
 	
-	int sockfd, new_fd;
+	int sockfd, n;
 	struct addrinfo hints, *res;
 	struct sockaddr_storage their_addr;
 	socklen_t sin_size;
@@ -27,12 +34,12 @@ int main(void) {
 	hints.ai_flags = AI_PASSIVE;
 
 	if (getaddrinfo(NULL, PORT, &hints, &res) != 0) {
-		// printf
-		return 1;
+		perror("server: getaddrinfo\n");
+		pthread_exit(NULL);
 	}
 	
 	if ((sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1) {
-		perror("client: socket");
+		perror("server: socket");
 	}
 	
 	if (bind(sockfd, res->ai_addr, res->ai_addrlen) == -1) {
@@ -41,38 +48,39 @@ int main(void) {
 	}
 
 	if (res == NULL)  {
-		fprintf(stderr, "server: failed to bind\n");
-		return 2;
+		perror("server: failed to bind\n");
+		pthread_exit(NULL);
 	}
 
 	freeaddrinfo(res);
 
 	if (listen(sockfd, BACKLOG) == -1) {
 		perror("listen");
-		exit(1);
+		pthread_exit(NULL);
 	}
 
-	printf("server: waiting for connections...\n");
+	// printf("server: waiting for connections...\n");
 	
-	double change;
-	while(1) {
 		sin_size = sizeof their_addr;
-		new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-		if (new_fd == -1) {
-			perror("accept");
-			continue;
-		}
-
-		if (!fork()) { // this is the child process
-			close(sockfd); // child doesn't need the listener
-			if (read(new_fd, &change, sizeof(change)) == -1)
-				perror("send");
-			printf("client: received '%f'\n", change);	
-			close(new_fd);
-			exit(0);
-		}
-		close(new_fd);  // parent doesn't need this
+	sockfd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
+	if (sockfd == -1) {
+		perror("accept");
 	}
 
-	return 0;
+	double change = 0;
+	
+	while(untilIDie) {
+		if ((n = read(sockfd, &change, sizeof(change))) == -1)
+			perror("send");
+		if (n == 0)
+			break;
+		appendRemoteInput(change);
+		printf("client: received %d %ld %f\n", n, sizeof(change), change);
+	}			
+
+	close(sockfd);
+
+	printf("Closing server thread\n");
+	fflush(stdout);
+	pthread_exit(NULL);
 }
