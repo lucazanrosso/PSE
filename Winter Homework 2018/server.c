@@ -15,7 +15,7 @@
 
 #include "monitorRemoteInput.h"
 
-#define PORT "3498"
+#define PORT "3499"
 #define BACKLOG 5
 #define MAXDATASIZE 100
 
@@ -75,7 +75,7 @@ void* serverFunc(void *arg) {
 		if (n == 0)
 			break;
 		appendRemoteInput(change);
-		printf("client: received %d %ld %f\n", n, sizeof(change), change);
+		// printf("client: received %d %ld %f\n", n, sizeof(change), change);
 	}			
 
 	close(sockfd);

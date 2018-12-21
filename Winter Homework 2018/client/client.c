@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 
 #define HOSTNAME "127.0.0.1"
-#define PORT "3498"
+#define PORT "3499"
 #define MAX_LINE_LENGTH 80
 
 int main(void) {

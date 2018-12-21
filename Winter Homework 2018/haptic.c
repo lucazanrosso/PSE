@@ -25,6 +25,7 @@ struct CommandLine {
 
 sigset_t signalMask;
 bool extern untilIDie;
+bool extern onlineMode;
 
 void displayPosition(double position, int initialWall, int finalWall);
 
@@ -75,7 +76,10 @@ void* modelFunc(void *arg) {
 	int i = 0;
 	
 	while(untilIDie) {
-		change = takeInput();
+		if (!onlineMode)
+			change = takeInput();
+		else
+			change = takeRemoteInput();
 		// printf("The position %d has changed by: %lf\n", i, change);
 		// fflush(stdout);
 		
@@ -109,7 +113,7 @@ void* viewFunc(void *arg) {
 		position = takePosition();
 		// printf("View position at time %d: %lf\n", time, position);
 		// fflush(stdout);
-		// displayPosition(position, initialWall, finalWall);
+		displayPosition(position, initialWall, finalWall);
 		usleep(timeView * 10000);
 		time += timeView;
 	}
@@ -158,7 +162,10 @@ void* killerFunc(void *arg) {
 
 	if (signalCaught == SIGINT) {
 		untilIDie = false;
-		forceSignalingInput();
+		if (!onlineMode)
+			forceSignalingInput();
+		else
+			forceSignalingRemoteInput();
 	}
 	
 	printf("\nClosing killer thread\n");
@@ -176,9 +183,13 @@ int main(int argc, char **argv) {
 			strtol(argv[2], NULL, 10), 
 			strtol(argv[3], NULL, 10), 
 			strtol(argv[4], NULL, 10)};
+			
+	onlineMode = true;
 	
-	initMonitorInput();
-	initMonitorRemoteInput();
+	if (!onlineMode)
+		initMonitorInput();
+	else
+		initMonitorRemoteInput();
 	initMonitorPosition(INITIAL_POSITION);
 	
 	pthread_t interface;
@@ -197,10 +208,11 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&interface, NULL, (void *) interfaceFunc, (void *) NULL) != 0) {
-		printf("Error in creating interface thread");
-		exit(EXIT_FAILURE);
-	}
+	if (!onlineMode)
+		if (pthread_create(&interface, NULL, (void *) interfaceFunc, (void *) NULL) != 0) {
+			printf("Error in creating interface thread");
+			exit(EXIT_FAILURE);
+		}
 	
 	if (pthread_create(&model, NULL, (void *) modelFunc, (void *) &commandLine) != 0) {
 		printf("Error in creating model thread");
@@ -222,15 +234,17 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&server, NULL, (void *) serverFunc, (void *) NULL) != 0) {
-		printf("Error in creating server thread");
-		exit(EXIT_FAILURE);
-	}
+	if (onlineMode)
+		if (pthread_create(&server, NULL, (void *) serverFunc, (void *) NULL) != 0) {
+			printf("Error in creating server thread");
+			exit(EXIT_FAILURE);
+		}
 	
-	if (pthread_join(interface, NULL)) {
-		printf("Error in joining interface thread");
-		exit(EXIT_FAILURE);
-	}
+	if (!onlineMode)
+		if (pthread_join(interface, NULL)) {
+			printf("Error in joining interface thread");
+			exit(EXIT_FAILURE);
+		}
 	
 	if (pthread_join(model, NULL) != 0) {
 		printf("Error in joining model thread");
@@ -252,13 +266,16 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_join(server, NULL)) {
-		printf("Error in joining server thread");
-		exit(EXIT_FAILURE);
-	}
+	if (onlineMode)
+		if (pthread_join(server, NULL)) {
+			printf("Error in joining server thread");
+			exit(EXIT_FAILURE);
+		}
 	
-	closeMonitorInput();
-	closeMonitorRemoteInput();
+	if (!onlineMode)
+		closeMonitorInput();
+	else
+		closeMonitorRemoteInput();
 	closeMonitorPosition();
 	
 	printf("EXIT SUCCESS\n");
