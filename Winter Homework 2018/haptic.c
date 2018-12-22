@@ -21,11 +21,11 @@ struct CommandLine {
     int finalWall;
     int timeController; 
     int timeView;
+	int onlineMode;
 };
 
 sigset_t signalMask;
 bool extern untilIDie;
-bool extern onlineMode;
 
 void displayPosition(double position, int initialWall, int finalWall);
 
@@ -34,7 +34,7 @@ void* interfaceFunc(void *arg) {
 	FILE *device_file;
     char line[MAX_LINE_LENGTH]; 
     
-    device_file = fopen("device.txt", "r"); 
+    device_file = fopen("device.txt", "r");
     
     if (device_file == NULL) {
         printf("Can't open device.txt\n");
@@ -70,13 +70,14 @@ void* modelFunc(void *arg) {
 	struct CommandLine *commandLine = (struct CommandLine *) arg;
 	int initialWall = commandLine->initialWall;
 	int finalWall = commandLine->finalWall;
+	int onlineMode = commandLine->onlineMode;
 	
 	double change = 0;
 	double position = INITIAL_POSITION;
 	int i = 0;
 	
 	while(untilIDie) {
-		if (!onlineMode)
+		if (onlineMode == 0)
 			change = takeInput();
 		else
 			change = takeRemoteInput();
@@ -152,7 +153,8 @@ void* controllerFunc(void *arg) {
 }
 
 void* killerFunc(void *arg) {
-	
+	struct CommandLine *commandLine = (struct CommandLine *) arg;
+	int onlineMode = commandLine->onlineMode;
 	int signalCaught;
 
     if (sigwait(&signalMask, &signalCaught)) {
@@ -162,7 +164,7 @@ void* killerFunc(void *arg) {
 
 	if (signalCaught == SIGINT) {
 		untilIDie = false;
-		if (!onlineMode)
+		if (onlineMode == 0)
 			forceSignalingInput();
 		else
 			forceSignalingRemoteInput();
@@ -174,19 +176,25 @@ void* killerFunc(void *arg) {
 
 int main(int argc, char **argv) {
 	
-	if (argc != 5) {
-		printf("Wrong command line input");
+	if (argc != 6) {
+		printf("Wrong command line input: you have to type ./haptic par1 par2 par3 par4 par5\n\
+				- par1: int initial wall\n\
+				- par2: int final wall\n\
+				- par3: int controller refresh time\n\
+				- par4: int view refresh time\n\
+				- par5: int 0 for local mode, 1 for online mode");
 		exit(EXIT_FAILURE);
 	}
 	
 	struct CommandLine commandLine = {strtol(argv[1], NULL, 10), 
 			strtol(argv[2], NULL, 10), 
 			strtol(argv[3], NULL, 10), 
-			strtol(argv[4], NULL, 10)};
+			strtol(argv[4], NULL, 10),
+			strtol(argv[5], NULL, 10)};
 			
-	onlineMode = true;
+	int onlineMode = commandLine.onlineMode;
 	
-	if (!onlineMode)
+	if (onlineMode == 0)
 		initMonitorInput();
 	else
 		initMonitorRemoteInput();
@@ -208,7 +216,7 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (!onlineMode)
+	if (onlineMode == 0)
 		if (pthread_create(&interface, NULL, (void *) interfaceFunc, (void *) NULL) != 0) {
 			printf("Error in creating interface thread");
 			exit(EXIT_FAILURE);
@@ -229,18 +237,18 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&killer, NULL, (void *) killerFunc, (void *) NULL) != 0) {
+	if (pthread_create(&killer, NULL, (void *) killerFunc, (void *) &commandLine) != 0) {
 		printf("Error in creating killer thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (onlineMode)
+	if (onlineMode == 1)
 		if (pthread_create(&server, NULL, (void *) serverFunc, (void *) NULL) != 0) {
 			printf("Error in creating server thread");
 			exit(EXIT_FAILURE);
 		}
 	
-	if (!onlineMode)
+	if (onlineMode == 0)
 		if (pthread_join(interface, NULL)) {
 			printf("Error in joining interface thread");
 			exit(EXIT_FAILURE);
@@ -266,13 +274,13 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (onlineMode)
+	if (onlineMode == 1)
 		if (pthread_join(server, NULL)) {
 			printf("Error in joining server thread");
 			exit(EXIT_FAILURE);
 		}
 	
-	if (!onlineMode)
+	if (onlineMode == 0)
 		closeMonitorInput();
 	else
 		closeMonitorRemoteInput();
