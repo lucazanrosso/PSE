@@ -8,8 +8,9 @@
 #include <sys/socket.h>
 
 #define HOSTNAME "127.0.0.1"
-#define PORT "3499"
+#define PORT "3503"
 #define MAX_LINE_LENGTH 80
+#define INITIAL_POSITION 0
 
 int main(void) {
 	
@@ -50,7 +51,12 @@ int main(void) {
     }
     
     int time;
-    double change;  
+	double position = INITIAL_POSITION;
+    double change;
+	
+	if (write(sockfd, &position, sizeof(position)) == -1) {
+		perror("client: failed to send message\n");
+	}
 	
     while (1) {		
 		if (fgets(line, sizeof(line), device_file) != NULL)

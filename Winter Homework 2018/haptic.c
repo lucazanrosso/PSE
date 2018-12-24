@@ -13,7 +13,6 @@
 
 #define DISPLAY_WIDTH 80
 #define INITIAL_POSITION 0
-
 #define MAX_LINE_LENGTH 80
 
 struct CommandLine {
@@ -21,11 +20,11 @@ struct CommandLine {
     int finalWall;
     int timeController; 
     int timeView;
-	int onlineMode;
 };
 
 sigset_t signalMask;
 bool extern untilIDie;
+bool extern onlineMode;
 
 void displayPosition(double position, int initialWall, int finalWall);
 
@@ -70,19 +69,17 @@ void* modelFunc(void *arg) {
 	struct CommandLine *commandLine = (struct CommandLine *) arg;
 	int initialWall = commandLine->initialWall;
 	int finalWall = commandLine->finalWall;
-	int onlineMode = commandLine->onlineMode;
 	
 	double change = 0;
 	double position = INITIAL_POSITION;
 	int i = 0;
 	
-	while(untilIDie) {
-		if (onlineMode == 0)
-			change = takeInput();
-		else
+	while(untilIDie) {			
+		change = takeInput();
+		if (onlineMode)
 			change = takeRemoteInput();
-		// printf("The position %d has changed by: %lf\n", i, change);
-		// fflush(stdout);
+		printf("The position %d has changed by: %lf. Online Mode: %d\n", i, change, onlineMode);
+		fflush(stdout);
 		
 		position += change;
 		if (position > finalWall)
@@ -114,7 +111,7 @@ void* viewFunc(void *arg) {
 		position = takePosition();
 		// printf("View position at time %d: %lf\n", time, position);
 		// fflush(stdout);
-		displayPosition(position, initialWall, finalWall);
+		// displayPosition(position, initialWall, finalWall);
 		usleep(timeView * 10000);
 		time += timeView;
 	}
@@ -153,8 +150,6 @@ void* controllerFunc(void *arg) {
 }
 
 void* killerFunc(void *arg) {
-	struct CommandLine *commandLine = (struct CommandLine *) arg;
-	int onlineMode = commandLine->onlineMode;
 	int signalCaught;
 
     if (sigwait(&signalMask, &signalCaught)) {
@@ -164,10 +159,8 @@ void* killerFunc(void *arg) {
 
 	if (signalCaught == SIGINT) {
 		untilIDie = false;
-		if (onlineMode == 0)
-			forceSignalingInput();
-		else
-			forceSignalingRemoteInput();
+		forceSignalingInput();
+		forceSignalingRemoteInput();
 	}
 	
 	printf("\nClosing killer thread\n");
@@ -176,28 +169,24 @@ void* killerFunc(void *arg) {
 
 int main(int argc, char **argv) {
 	
-	if (argc != 6) {
-		printf("Wrong command line input: you have to type ./haptic par1 par2 par3 par4 par5\n\
+	if (argc != 5) {
+		printf("Wrong command line input: you have to type ./haptic par1 par2 par3 par4\n\
 				- par1: int initial wall\n\
 				- par2: int final wall\n\
 				- par3: int controller refresh time\n\
-				- par4: int view refresh time\n\
-				- par5: int 0 for local mode, 1 for online mode");
+				- par4: int view refresh time\n");
 		exit(EXIT_FAILURE);
 	}
 	
 	struct CommandLine commandLine = {strtol(argv[1], NULL, 10), 
 			strtol(argv[2], NULL, 10), 
 			strtol(argv[3], NULL, 10), 
-			strtol(argv[4], NULL, 10),
-			strtol(argv[5], NULL, 10)};
+			strtol(argv[4], NULL, 10)};
 			
-	int onlineMode = commandLine.onlineMode;
+	onlineMode = false;
 	
-	if (onlineMode == 0)
-		initMonitorInput();
-	else
-		initMonitorRemoteInput();
+	initMonitorInput();
+	initMonitorRemoteInput();
 	initMonitorPosition(INITIAL_POSITION);
 	
 	pthread_t interface;
@@ -216,11 +205,10 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (onlineMode == 0)
-		if (pthread_create(&interface, NULL, (void *) interfaceFunc, (void *) NULL) != 0) {
-			printf("Error in creating interface thread");
-			exit(EXIT_FAILURE);
-		}
+	if (pthread_create(&interface, NULL, (void *) interfaceFunc, (void *) NULL) != 0) {
+		printf("Error in creating interface thread");
+		exit(EXIT_FAILURE);
+	}
 	
 	if (pthread_create(&model, NULL, (void *) modelFunc, (void *) &commandLine) != 0) {
 		printf("Error in creating model thread");
@@ -237,22 +225,20 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (pthread_create(&killer, NULL, (void *) killerFunc, (void *) &commandLine) != 0) {
+	if (pthread_create(&killer, NULL, (void *) killerFunc, (void *) NULL) != 0) {
 		printf("Error in creating killer thread");
 		exit(EXIT_FAILURE);
 	}
 	
-	if (onlineMode == 1)
-		if (pthread_create(&server, NULL, (void *) serverFunc, (void *) NULL) != 0) {
-			printf("Error in creating server thread");
-			exit(EXIT_FAILURE);
-		}
+	if (pthread_create(&server, NULL, (void *) serverFunc, (void *) NULL) != 0) {
+		printf("Error in creating server thread");
+		exit(EXIT_FAILURE);
+	}
 	
-	if (onlineMode == 0)
-		if (pthread_join(interface, NULL)) {
-			printf("Error in joining interface thread");
-			exit(EXIT_FAILURE);
-		}
+	if (pthread_join(interface, NULL)) {
+		printf("Error in joining interface thread");
+		exit(EXIT_FAILURE);
+	}
 	
 	if (pthread_join(model, NULL) != 0) {
 		printf("Error in joining model thread");
@@ -274,16 +260,13 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (onlineMode == 1)
-		if (pthread_join(server, NULL)) {
-			printf("Error in joining server thread");
-			exit(EXIT_FAILURE);
-		}
+	if (pthread_join(server, NULL)) {
+		printf("Error in joining server thread");
+		exit(EXIT_FAILURE);
+	}
 	
-	if (onlineMode == 0)
-		closeMonitorInput();
-	else
-		closeMonitorRemoteInput();
+	closeMonitorInput();
+	closeMonitorRemoteInput();
 	closeMonitorPosition();
 	
 	printf("EXIT SUCCESS\n");

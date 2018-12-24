@@ -14,16 +14,18 @@
 #include <pthread.h>
 
 #include "monitorRemoteInput.h"
+#include "monitorPosition.h"
 
-#define PORT "3499"
+#define PORT "3503"
 #define BACKLOG 5
 #define MAXDATASIZE 100
 
 bool extern untilIDie;
+bool extern onlineMode;
  
 void* serverFunc(void *arg) {
 	
-	int sockfd, n;
+	int sockfd, new_fd, n;
 	struct addrinfo hints, *res;
 	struct sockaddr_storage their_addr;
 	socklen_t sin_size;
@@ -60,23 +62,35 @@ void* serverFunc(void *arg) {
 	}
 
 	// printf("server: waiting for connections...\n");
-	
-		sin_size = sizeof their_addr;
-	sockfd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-	if (sockfd == -1) {
-		perror("accept");
-	}
-
-	double change = 0;
-	
 	while(untilIDie) {
-		if ((n = read(sockfd, &change, sizeof(change))) == -1)
-			perror("send");
-		if (n == 0)
-			break;
-		appendRemoteInput(change);
-		// printf("client: received %d %ld %f\n", n, sizeof(change), change);
-	}			
+		sin_size = sizeof their_addr;
+		new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
+		if (new_fd == -1) {
+			perror("accept");
+		}
+
+		double change = 0;
+		bool firstRemoteInput = true;
+		
+		while(untilIDie) {
+			if ((n = read(new_fd, &change, sizeof(change))) == -1)
+				perror("Failed to read message");
+			else if (n == 0) {
+				onlineMode = false;
+				break;
+			} else {
+				if (firstRemoteInput) {
+					onlineMode = true;
+					appendPosition(change);
+					firstRemoteInput = false;
+				} else {
+					appendRemoteInput(change);
+				}		
+			}
+			// printf("client: received %d %ld %f\n", n, sizeof(change), change);
+		}
+		close(new_fd);
+	}		
 
 	close(sockfd);
 
