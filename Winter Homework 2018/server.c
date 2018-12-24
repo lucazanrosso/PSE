@@ -16,7 +16,7 @@
 #include "monitorRemoteInput.h"
 #include "monitorPosition.h"
 
-#define PORT "3503"
+#define PORT "3510"
 #define BACKLOG 5
 #define MAXDATASIZE 100
 
@@ -60,36 +60,53 @@ void* serverFunc(void *arg) {
 		perror("listen");
 		pthread_exit(NULL);
 	}
+	
+	fd_set readfds;
+	int rv = 0;
+	struct timeval timeout;
 
 	// printf("server: waiting for connections...\n");
 	while(untilIDie) {
-		sin_size = sizeof their_addr;
-		new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-		if (new_fd == -1) {
-			perror("accept");
-		}
+			
+		FD_ZERO(&readfds);
+		FD_SET(sockfd, &readfds);
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 500000;
 
-		double change = 0;
-		bool firstRemoteInput = true;
-		
-		while(untilIDie) {
-			if ((n = read(new_fd, &change, sizeof(change))) == -1)
-				perror("Failed to read message");
-			else if (n == 0) {
-				onlineMode = false;
-				break;
-			} else {
-				if (firstRemoteInput) {
-					onlineMode = true;
-					appendPosition(change);
-					firstRemoteInput = false;
-				} else {
-					appendRemoteInput(change);
-				}		
+		if ((rv = select(sockfd + 1, &readfds, NULL, NULL, &timeout)) == -1)
+			perror("select");
+		else if (rv == 0) {
+			// printf("Waiting ready connection...");
+		} else {
+			printf("ciao3");
+			sin_size = sizeof their_addr;
+			new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
+			if (new_fd == -1) {
+				perror("accept");
 			}
-			// printf("client: received %d %ld %f\n", n, sizeof(change), change);
+
+			double change = 0;
+			bool firstRemoteInput = true;
+			
+			while(untilIDie) {
+				if ((n = read(new_fd, &change, sizeof(change))) == -1)
+					perror("Failed to read message");
+				else if (n == 0) {
+					onlineMode = false;
+					break;
+				} else {
+					if (firstRemoteInput) {
+						onlineMode = true;
+						appendPosition(change);
+						firstRemoteInput = false;
+					} else {
+						appendRemoteInput(change);
+					}		
+				}
+				// printf("client: received %d %ld %f\n", n, sizeof(change), change);
+			}
+			close(new_fd);
 		}
-		close(new_fd);
 	}		
 
 	close(sockfd);

@@ -111,7 +111,7 @@ void* viewFunc(void *arg) {
 		position = takePosition();
 		// printf("View position at time %d: %lf\n", time, position);
 		// fflush(stdout);
-		// displayPosition(position, initialWall, finalWall);
+		displayPosition(position, initialWall, finalWall);
 		usleep(timeView * 10000);
 		time += timeView;
 	}
