@@ -2,3 +2,4 @@
 
 bool untilIDie;
 bool onlineMode;
+bool isFirstRemoteInput;

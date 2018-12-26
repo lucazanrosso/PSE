@@ -111,6 +111,22 @@ void forceSignalingRemoteInput() {
 	}
 }
 
+void resetRemoteInput() {
+	if (pthread_mutex_lock(&mtxRemoteInput) != 0) {
+		printf("pthread_mutex_lock\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	availRemoteInput = 0;
+	for (int i = 0; i < sizeof(deviceRemoteInput); i++)
+		deviceRemoteInput[i] = 0;
+	
+	if (pthread_mutex_unlock(&mtxRemoteInput) != 0) {
+		printf("pthread_mutex_unlock\n");
+		exit(EXIT_FAILURE);
+	}	
+}
+
 void initMonitorRemoteInput() {	
 	if (pthread_mutex_init(&mtxRemoteInput, NULL) != 0) {
 		printf("Error in mutex init\n");

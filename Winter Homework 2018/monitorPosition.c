@@ -3,8 +3,10 @@
 #include <stdlib.h>
 
 double devicePosition;
+double deviceRemotePosition;
 
 pthread_mutex_t mtxPosition;
+pthread_mutex_t mtxRemotePosition;
  
 void appendPosition(double position) {
 	if (pthread_mutex_lock(&mtxPosition) != 0) {
@@ -15,6 +17,20 @@ void appendPosition(double position) {
 	devicePosition = position;
 
 	if (pthread_mutex_unlock(&mtxPosition) != 0) {
+		printf("pthread_mutex_unlock\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void appendRemotePosition(double position) {
+	if (pthread_mutex_lock(&mtxRemotePosition) != 0) {
+		printf("pthread_mutex_lock\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	deviceRemotePosition = position;
+	
+	if (pthread_mutex_unlock(&mtxRemotePosition) != 0) {
 		printf("pthread_mutex_unlock\n");
 		exit(EXIT_FAILURE);
 	}
@@ -32,6 +48,22 @@ double takePosition() {
 		printf("pthread_mutex_unlock\n");
 		exit(EXIT_FAILURE);
 	}
+	
+	return position;
+}
+
+double takeRemotePosition() {
+	if (pthread_mutex_lock(&mtxRemotePosition) != 0) {
+		printf("pthread_mutex_lock\n");
+		exit(EXIT_FAILURE);
+	}	
+	
+	double position = deviceRemotePosition;	
+	
+	if (pthread_mutex_unlock(&mtxRemotePosition) != 0) {
+		printf("pthread_mutex_unlock\n");
+		exit(EXIT_FAILURE);
+	}	
 	
 	return position;
 }

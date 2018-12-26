@@ -25,6 +25,7 @@ struct CommandLine {
 sigset_t signalMask;
 bool extern untilIDie;
 bool extern onlineMode;
+bool extern isFirstRemoteInput;
 
 void displayPosition(double position, int initialWall, int finalWall);
 
@@ -76,10 +77,17 @@ void* modelFunc(void *arg) {
 	
 	while(untilIDie) {			
 		change = takeInput();
-		if (onlineMode)
+		if (onlineMode) {
+			if (isFirstRemoteInput) {
+				position = takeRemotePosition();
+				isFirstRemoteInput = false;
+				// printf("Remote position %f", position);
+				// fflush(stdout);
+			} 
 			change = takeRemoteInput();
-		printf("The position %d has changed by: %lf. Online Mode: %d\n", i, change, onlineMode);
-		fflush(stdout);
+		}
+		// printf("The position %d has changed by: %lf. Online Mode: %d\n", i, change, onlineMode);
+		// fflush(stdout);
 		
 		position += change;
 		if (position > finalWall)

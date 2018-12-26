@@ -4,6 +4,7 @@
 void appendRemoteInput(double change);
 double takeRemoteInput();
 void forceSignalingRemoteInput();
+void resetRemoteInput();
 
 void initMonitorRemoteInput();
 void closeMonitorRemoteInput();

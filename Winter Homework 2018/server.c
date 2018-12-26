@@ -22,6 +22,7 @@
 
 bool extern untilIDie;
 bool extern onlineMode;
+bool extern isFirstRemoteInput;
  
 void* serverFunc(void *arg) {
 	
@@ -64,45 +65,48 @@ void* serverFunc(void *arg) {
 	fd_set readfds;
 	int rv = 0;
 	struct timeval timeout;
+	timeout.tv_sec = 0;
+	timeout.tv_usec = 500000;
+	double position;
+	double change;
 
 	// printf("server: waiting for connections...\n");
 	while(untilIDie) {
 			
 		FD_ZERO(&readfds);
 		FD_SET(sockfd, &readfds);
-		timeout.tv_sec = 0;
-		timeout.tv_usec = 500000;
 
 		if ((rv = select(sockfd + 1, &readfds, NULL, NULL, &timeout)) == -1)
 			perror("select");
 		else if (rv == 0) {
 			// printf("Waiting ready connection...");
 		} else {
-			printf("ciao3");
 			sin_size = sizeof their_addr;
 			new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
 			if (new_fd == -1) {
 				perror("accept");
 			}
-
-			double change = 0;
-			bool firstRemoteInput = true;
+			
+			isFirstRemoteInput = true;
+			
+			if ((n = read(new_fd, &position, sizeof(position))) == -1)
+				perror("Failed to read message");
+			else if (n == 0)
+				onlineMode = false;
+			else {
+				appendRemotePosition(position);
+				onlineMode = true;
+			}
 			
 			while(untilIDie) {
 				if ((n = read(new_fd, &change, sizeof(change))) == -1)
 					perror("Failed to read message");
 				else if (n == 0) {
+					resetRemoteInput();
 					onlineMode = false;
 					break;
-				} else {
-					if (firstRemoteInput) {
-						onlineMode = true;
-						appendPosition(change);
-						firstRemoteInput = false;
-					} else {
-						appendRemoteInput(change);
-					}		
-				}
+				} else
+					appendRemoteInput(change);
 				// printf("client: received %d %ld %f\n", n, sizeof(change), change);
 			}
 			close(new_fd);
