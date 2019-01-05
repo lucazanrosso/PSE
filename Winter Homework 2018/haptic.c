@@ -34,7 +34,7 @@ void* interfaceFunc(void *arg) {
 	FILE *device_file;
     char line[MAX_LINE_LENGTH]; 
     
-    device_file = fopen("device.txt", "r");
+    device_file = fopen("device2.txt", "r");
     
     if (device_file == NULL) {
         printf("Can't open device.txt\n");
