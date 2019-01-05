@@ -5,6 +5,7 @@ The purpose of this program is to create a software for controlling a rehabilita
 The program provides that the patient can use the device remotely. Communication takes place via client-server and a stream socket connection.
 
 The screen shows the movement of the device that the patient is moving.
+The output data to be sent to the controller can be found in the file output.txt.
 
 ### Server
 
